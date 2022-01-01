@@ -27,11 +27,15 @@ $REDSHIFT_PORT=5439
 $EMR_NODE_TYPE="m4.xlarge"
 
 echo "Creating bucker $args"
-aws s3api create-bucket --bucket $args --create-bucket-configuration LocationConstraint=$AWS_REGION --output text >> setup.log
+aws s3api create-bucket `
+--bucket $args `
+--create-bucket-configuration LocationConstraint=$AWS_REGION `
+--output text >> setup.log
 
 echo "Clean up stale local data"
 rm data.zip -Force
 rm data -r -Force
+
 echo "Download data"
 aws s3 cp s3://start-data-engg/data.zip ./
 Expand-Archive data.zip .\
@@ -51,3 +55,83 @@ sleep 300
 # echo $AWS_ID
 # echo $AWS_REGION
 # # SUCCESS
+
+echo "Creating $SERVICE_NAME AWS EMR Cluster"
+aws emr create-default-roles >> setup.log
+aws emr create-cluster `
+--applications Name=Hadoop Name=Spark `
+--release-label emr-6.2.0 `
+--name $SERVICE_NAME `
+--scale-down-behavior TERMINATE_AT_TASK_COMPLETION `
+--service-role EMR_DefaultRole `
+--instance-groups @"
+[
+    {
+        "InstanceCount": 1,
+        "EbsConfiguration": {
+            "EbsBlockDeviceConfigs": [
+                {
+                    "VolumeSpecification": {
+                        "SizeInGB": 32,
+                        "VolumeType": "gp2"
+                    },
+                    "VolumePerInstance": 2
+                }
+            ]
+        },
+        "InstanceGroupType": "MASTER",
+        "InstanceType": $EMR_NODE_TYPE,
+        "Name": "Master - 1"
+    },
+    {
+        "InstanceCount": 2,
+        "BidPrice": "OnDemandPrice",
+        "EbsConfiguration": {
+            "EbsBlockDeviceConfigs": [
+                {
+                    "VolumeSpecification": {
+                        "SizeInGB": 32,
+                        "VolumeType": "gp2"
+                    },
+                    "VolumePerInstance": 2
+                }
+            ]
+        },
+        "InstanceGroupType": "CORE",
+        "InstanceType": $EMR_NODE_TYPE,
+        "Name": "Core - 2"
+    }
+]
+"@ >> setup.log
+
+echo "Create trust policy for AWS IAM role"
+echo @"
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Principal": {
+                "Service": "redshift.amazonaws.com"
+            },
+            "Action": "sts.AssumeRole"
+        }
+    ]
+}
+"@ > trust-policy.json
+
+echo "Create role"
+aws iam create-role `
+--role-name $IAM_ROLE_NAME `
+--assume-role-policy-document file://trust-policy.json `
+--description 'spectrum access for redshift' >> setup.log
+
+echo "Attach AmazonS3ReadOnlyAccess and AWSGlueConsoleFullAccess Policies to our IAM Role"
+aws iam attach-role-policy `
+--role-name $IAM_ROLE_NAME `
+--policy-arn arm:aws:iam:aws:policy/AmazonS3ReadOnlyAccess `
+--output text >> setup.log
+aws iam attach-role-policy `
+--role-name $IAM_ROLE_NAME `
+--policy-arn arm:aws:iam:aws:policy/AWSGlueConsoleFullAccess `
+--output text >> setup.log

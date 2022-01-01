@@ -1,17 +1,17 @@
 # Behavior Personalization Pipeline with AWS
 
-# Description
+## Description
 
 Build batch processing pipelines to do behavior analytics.
 
-# Technology
+## Technology
 
 Apache Airflow, AWS, Docker, PySpark,
 
-# Usage
+## Usage
 
-This code run in windows 10 while the reference [1](https://www.startdataengineering.com/post/data-engineering-project-for-beginners-batch-edition/) run in linux/macOS
+This code run in windows 10 while the reference [[1]](https://www.startdataengineering.com/post/data-engineering-project-for-beginners-batch-edition/) run in linux/macOS
 
-# Reference
+## Reference
 
-1. [Data Engineering Project for Beginners - Batch edition](https://www.startdataengineering.com/post/data-engineering-project-for-beginners-batch-edition/)
+[1] [Data Engineering Project for Beginners - Batch edition](https://www.startdataengineering.com/post/data-engineering-project-for-beginners-batch-edition/)
