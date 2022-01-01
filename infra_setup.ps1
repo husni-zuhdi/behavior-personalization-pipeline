@@ -135,3 +135,4 @@ aws iam attach-role-policy `
 --role-name $IAM_ROLE_NAME `
 --policy-arn arm:aws:iam:aws:policy/AWSGlueConsoleFullAccess `
 --output text >> setup.log
+

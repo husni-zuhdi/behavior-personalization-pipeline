@@ -63,8 +63,8 @@ x-airflow-common:
     - ./dags:/opt/airflow/dags
     - ./logs:/opt/airflow/logs
     - ./plugins:/opt/airflow/plugins
-    - ./data:data
-    - ./temp:temp
+    - ./data:/data
+    - ./temp:/temp
   user: "${AIRFLOW_UID:-50000}:${AIRFLOW_GID:-50000}"
   depends_on:
     # &airflow-common-depends-on
@@ -82,8 +82,8 @@ services:
       POSTGRES_DB: airflow
     volumes:
       # - postgres-db-volume:/var/lib/postgresql/data
-      - ./data:input_data
-      - ./temp:temp
+      - ./data:/input_data
+      - ./temp:/temp
       - ./pgsetup:/docker-entrypoint-initdb.d
     healthcheck:
       test: ["CMD", "pg_isready", "-U", "airflow"]
