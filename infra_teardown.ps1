@@ -13,6 +13,7 @@ echo "Deleting bucket $args and its contents"
 aws s3 rm s3://$args `
 --recursive `
 --output text >> tear_down.log
+
 aws s3api delete-bucket `
 --bucket $args `
 --output text >> tear_down.log
@@ -26,6 +27,7 @@ docker compose down --volumes --rmi all
 
 echo "Terminating EMR cluster $SERVICE_NAME"
 EMR_CLUSTER_ID=$(aws emr list-clusters --active --query "Clusters[?Name==`'$SERVICE_NAME'`].Id" --output text)
+
 aws emr terminate-clusters `
 --cluster-ids $EMR_CLUSTER_ID >> tear_down.log
 

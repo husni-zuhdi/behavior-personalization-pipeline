@@ -6,3 +6,6 @@ logs
 pgsetup
 plugins
 temp
+data.zip
+setup.log
+trust-policy.json
