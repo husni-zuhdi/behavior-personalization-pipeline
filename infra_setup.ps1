@@ -19,7 +19,7 @@ $AWS_ID=$(aws sts get-caller-identity --query Account --output text)
 $AWS_REGION=$(aws configure get region)
 
 $SERVICE_NAME="bp-batch-project"
-$IAM_ROLE="bp-spectrum-redshift"
+$IAM_ROLE_NAME="bp-spectrum-redshift"
 
 $REDSHIFT_USER="bp_user"
 $REDSHIFT_PASSWORD="bpp455wo0rd"
@@ -129,10 +129,89 @@ aws iam create-role `
 echo "Attach AmazonS3ReadOnlyAccess and AWSGlueConsoleFullAccess Policies to our IAM Role"
 aws iam attach-role-policy `
 --role-name $IAM_ROLE_NAME `
---policy-arn arm:aws:iam:aws:policy/AmazonS3ReadOnlyAccess `
+--policy-arn arm:aws:iam::aws:policy/AmazonS3ReadOnlyAccess `
 --output text >> setup.log
 aws iam attach-role-policy `
 --role-name $IAM_ROLE_NAME `
---policy-arn arm:aws:iam:aws:policy/AWSGlueConsoleFullAccess `
+--policy-arn arm:aws:iam::aws:policy/AWSGlueConsoleFullAccess `
 --output text >> setup.log
 
+echo "Create $SERVICE_NAME AWS Redshift Cluster"
+aws redshift create-cluster `
+--cluster-identifier $SERVICE_NAME `
+--node-type dc2.large `
+--master-username $REDSHIFT_USER `
+--master-user-password $REDSHIFT_PASSWORD `
+--cluster-type single-node `
+--publicly-accessible `
+--iam-roles "arn:aws:iam::$(echo $AWS_ID):role/$IAM_ROLE_NAME" >> setup.log
+
+while(){
+    echo "Waiting for Redshift cluster $SERVICE_NAME to start, sleeping for 60s before next check"
+    Start-Sleep 60
+    $REDSHIFT_CLUSTER_STATUS=$(aws redshift describe-clusters --cluster-identifier $SERVICE_NAME --query 'Clusters[0].ClusterStatus' --output text)
+    if ("$REDSHIFT_CLUSTER_STATUS" -eq "available") {
+        break
+    }
+}
+
+$REDSHIFT_HOST=$(aws redshift describe-clusters --cluster-identifier $SERVICE_NAME --query 'Clusters[0].Endpoint.Address' --output text)
+
+# TODO read the script from sql file
+echo "Running setup script on redshift"
+echo @"
+CREATE EXTERNAL SCHEMA spectrum
+FROM DATA CATALOG DATABASE "spectrumdb" iam_role "arn:aws:iam::$(echo $AWS_ID):role/$IAM_ROLE_NAME" CREATE EXTERNAL DATABASE IF NOT EXISTS;
+DROP TABLE IF EXISTS spectrum.user_purchase_staging;
+CREATE EXTERNAL TABLE spectrum.user_purchase_staging (
+    InvoiceNo VARCHAR(10),
+    StockCode VARCHAR(20),
+    detail VARCHAR(1000),
+    Quantity INTEGER,
+    InvoiceDate TIMESTAMP,
+    UnitPrice DECIMAL(8, 3),
+    customerid INTEGER,
+    Country VARCHAR(20)
+) PARTITIONED BY (insert_date DATE) 
+ROW FORMAT DELIMITED 
+FIELDS TERMINATED BY ',' 
+STORED AS textfile 
+LOCATION "s3://$args/stage/user_purchase/" 
+TABLE PROPERTIES ('skip.header.line.count' = '1');
+DROP TABLE IF EXISTS spectrum.classified_movie_review;
+CREATE EXTERNAL TABLE spectrum.classified_movie_review (
+    cid VARCHAR(100),
+    positive_review boolean,
+    insert_date VARCHAR(12)
+) STORED AS PARQUET LOCATION "s3://$args/stage/movie_review/";
+DROP TABLE IF EXISTS public.user_behavior_metric;
+CREATE TABLE public.user_behavior_metric (
+    customerid INTEGER,
+    amount_spent DECIMAL(18, 5),
+    review_score INTEGER,
+    review_count INTEGER,
+    insert_date DATE
+);
+"@ > ./redshift_setup.sql
+
+psql -f ./redshift_setup.sql postgres://$REDSHIFT_USER:$REDSHIFT_PASSWORD@$REDSHIFT_HOST:$REDSHIFT_PORT/dev
+rm ./redshift_setup.sql
+
+echo "adding redshift connections to Airflow connection param"
+docker exec -d beginner_de_project_airflow-webserver_1 airflow connections add 'redshift' --conn-type 'Postgres' --conn-login $REDSHIFT_USER --conn-password $REDSHIFT_PASSWORD --conn-host $REDSHIFT_HOST --conn-port $REDSHIFT_PORT --conn-schema 'dev'
+docker exec -d beginner_de_project_airflow-webserver_1 airflow connections add 'postgres_default' --conn-type 'Postgres' --conn-login 'airflow' --conn-password 'airflow' --conn-host 'localhost' --conn-port 5432 --conn-schema 'airflow'
+
+echo "adding S3 bucket name to Airflow variables"
+docker exec -d beginner_de_project_airflow-webserver_1 airflow variables set BUCKET $args
+
+echo "adding EMR ID to Airflow variables"
+EMR_CLUSTER_ID=$(aws emr list-clusters --active --query "Clusters[?Name==`'$SERVICE_NAME'`].Id" --output text)
+docker exec -d beginner_de_project_airflow-webserver_1 airflow variables set EMR_ID $EMR_CLUSTER_ID
+
+echo "Setting up AWS access for Airflow workers"
+AWS_ID=$(aws configure get aws_access_key_id)
+AWS_SECRET_KEY=$(aws configure get aws_secret_access_key)
+AWS_REGION=$(aws configure get region)
+docker exec -d beginner_de_project_airflow-webserver_1 airflow connections add 'aws_default' --conn-type 'aws' --conn-login $AWS_ID --conn-password $AWS_SECRET_KEY --conn-extra '{"region_name":"'$AWS_REGION'"}'
+
+echo "Successfully setup local Airflow containers, S3 bucket "$args", EMR Cluster "$SERVICE_NAME", redshift cluster "$SERVICE_NAME", and added config to Airflow connections and variables"
