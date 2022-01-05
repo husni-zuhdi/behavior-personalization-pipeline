@@ -1,3 +1,6 @@
+# To set default encoding to UTF-8
+$PSDefaultParameterValues['Out-File:Encoding'] = 'utf8'
+
 if ( $args.Count -eq 0 ) {
     echo 'Please enter your bucket name as ./spindown_infra.sh your-bucket'
     exit 0
@@ -19,14 +22,14 @@ aws s3api delete-bucket `
 --output text >> tear_down.log
 
 echo "Deleting local data"
-rm -f data.zip
-rm -rf data
+rm data.zip -Force
+rm -r data -Force
 
 echo "Spinning down local Airflow infrastructure"
 docker compose down --volumes --rmi all
 
 echo "Terminating EMR cluster $SERVICE_NAME"
-EMR_CLUSTER_ID=$(aws emr list-clusters --active --query "Clusters[?Name==`'$SERVICE_NAME'`].Id" --output text)
+$EMR_CLUSTER_ID=$(aws emr list-clusters --active --query "Clusters[?Name==`'$SERVICE_NAME'`].Id" --output text)
 
 aws emr terminate-clusters `
 --cluster-ids $EMR_CLUSTER_ID >> tear_down.log
@@ -37,12 +40,12 @@ aws redshift delete-cluster `
 --cluster-identifier $SERVICE_NAME `
 --output text >> tear_down.log
 
-echo "Dissociating AmazonS3ReadOnlyAccess policy from "$IAM_ROLE_NAME" role"
+echo "Dissociating AmazonS3ReadOnlyAccess policy from $IAM_ROLE_NAME role"
 aws iam detach-role-policy `
 --role-name $IAM_ROLE_NAME `
 --policy-arn arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess `
 --output text >> tear_down.log
-echo "Dissociating AWSGlueConsoleFullAccess policy from "$IAM_ROLE_NAME" role"
+echo "Dissociating AWSGlueConsoleFullAccess policy from $IAM_ROLE_NAME role"
 aws iam detach-role-policy `
 --role-name $IAM_ROLE_NAME `
 --policy-arn arn:aws:iam::aws:policy/AWSGlueConsoleFullAccess `

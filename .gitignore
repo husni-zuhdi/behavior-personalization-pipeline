@@ -8,4 +8,7 @@ plugins
 temp
 data.zip
 setup.log
+tear_down.log
 trust-policy.json
+redshift_setup.sql
+__MACOSX
