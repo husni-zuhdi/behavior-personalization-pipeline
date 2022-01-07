@@ -129,71 +129,71 @@ while($true){
 
 $REDSHIFT_HOST=$(aws redshift describe-clusters --cluster-identifier $SERVICE_NAME --query 'Clusters[0].Endpoint.Address' --output text)
 
-# echo "Get REDSHIFT_SG_ID and set the new inbound rule"
-# $REDSHIFT_SG_ID=$(aws redshift describe-clusters --cluster-identifier $SERVICE_NAME --query 'Clusters[0].ClusterSecurityGroups[0].ClusterSecurityGroupName' --output text)
-# aws ec2 authorize-security-group-ingress `
-# --group-id $REDSHIFT_SG_ID `
-# --protocol all `
-# --cidr 0.0.0.0/0 >> setup.log
+echo "Get REDSHIFT_SG_ID and set the new inbound rule"
+$REDSHIFT_SG_ID=$(aws redshift describe-clusters --cluster-identifier $SERVICE_NAME --query 'Clusters[0].VpcSecurityGroups[0].VpcSecurityGroupId' --output text )
+aws ec2 authorize-security-group-ingress `
+--group-id $REDSHIFT_SG_ID `
+--protocol all `
+--cidr 0.0.0.0/0 >> setup.log
 
-# echo "Running setup script on redshift"
-# echo @"
-# CREATE EXTERNAL SCHEMA spectrum
-#     FROM DATA CATALOG
-#     DATABASE 'spectrumdb'
-#     iam_role 'arn:aws:iam::$(echo $AWS_ID):role/$(echo $IAM_ROLE_NAME)'
-# CREATE EXTERNAL DATABASE IF NOT EXISTS;
-# DROP TABLE IF EXISTS spectrum.user_purchase_staging;
-# CREATE EXTERNAL TABLE spectrum.user_purchase_staging (
-#     InvoiceNo VARCHAR(10),
-#     StockCode VARCHAR(20),
-#     detail VARCHAR(1000),
-#     Quantity INTEGER,
-#     InvoiceDate TIMESTAMP,
-#     UnitPrice DECIMAL(8, 3),
-#     customerid INTEGER,
-#     Country VARCHAR(20)
-# ) PARTITIONED BY (insert_date DATE) 
-# ROW FORMAT DELIMITED 
-# FIELDS TERMINATED BY ',' 
-# STORED AS textfile 
-# LOCATION 's3://$args/stage/user_purchase/' 
-# TABLE PROPERTIES ('skip.header.line.count' = '1');
-# DROP TABLE IF EXISTS spectrum.classified_movie_review;
-# CREATE EXTERNAL TABLE spectrum.classified_movie_review (
-#     cid VARCHAR(100),
-#     positive_review boolean,
-#     insert_date VARCHAR(12)
-# ) STORED AS PARQUET LOCATION 's3://$args/stage/movie_review/';
-# DROP TABLE IF EXISTS public.user_behavior_metric;
-# CREATE TABLE public.user_behavior_metric (
-#     customerid INTEGER,
-#     amount_spent DECIMAL(18, 5),
-#     review_score INTEGER,
-#     review_count INTEGER,
-#     insert_date DATE
-# );
-# "@ > ./redshift_setup.sql
+echo "Running setup script on redshift"
+echo @"
+CREATE EXTERNAL SCHEMA spectrum
+    FROM DATA CATALOG
+    DATABASE 'spectrumdb'
+    iam_role 'arn:aws:iam::$(echo $AWS_ID):role/$(echo $IAM_ROLE_NAME)'
+CREATE EXTERNAL DATABASE IF NOT EXISTS;
+DROP TABLE IF EXISTS spectrum.user_purchase_staging;
+CREATE EXTERNAL TABLE spectrum.user_purchase_staging (
+    InvoiceNo VARCHAR(10),
+    StockCode VARCHAR(20),
+    detail VARCHAR(1000),
+    Quantity INTEGER,
+    InvoiceDate TIMESTAMP,
+    UnitPrice DECIMAL(8, 3),
+    customerid INTEGER,
+    Country VARCHAR(20)
+) PARTITIONED BY (insert_date DATE) 
+ROW FORMAT DELIMITED 
+FIELDS TERMINATED BY ',' 
+STORED AS textfile 
+LOCATION 's3://$args/stage/user_purchase/' 
+TABLE PROPERTIES ('skip.header.line.count' = '1');
+DROP TABLE IF EXISTS spectrum.classified_movie_review;
+CREATE EXTERNAL TABLE spectrum.classified_movie_review (
+    cid VARCHAR(100),
+    positive_review boolean,
+    insert_date VARCHAR(12)
+) STORED AS PARQUET LOCATION 's3://$args/stage/movie_review/';
+DROP TABLE IF EXISTS public.user_behavior_metric;
+CREATE TABLE public.user_behavior_metric (
+    customerid INTEGER,
+    amount_spent DECIMAL(18, 5),
+    review_score INTEGER,
+    review_count INTEGER,
+    insert_date DATE
+);
+"@ > ./redshift_setup.sql
 
-# psql -f ./redshift_setup.sql postgres://${REDSHIFT_USER}:${REDSHIFT_PASSWORD}@${REDSHIFT_HOST}:${REDSHIFT_PORT}/dev
+psql -f ./redshift_setup.sql postgres://${REDSHIFT_USER}:${REDSHIFT_PASSWORD}@${REDSHIFT_HOST}:${REDSHIFT_PORT}/dev
 # rm ./redshift_setup.sql
 
-# echo "adding redshift connections to Airflow connection param"
-# # name of folder is 7-de-behavior-persoanlizaiton
-# docker exec -d 7-de-behavior-persoanlizaiton_airflow-webserver_1 airflow connections add 'redshift' --conn-type 'Postgres' --conn-login $REDSHIFT_USER --conn-password $REDSHIFT_PASSWORD --conn-host $REDSHIFT_HOST --conn-port $REDSHIFT_PORT --conn-schema 'dev'
-# docker exec -d 7-de-behavior-persoanlizaiton_airflow-webserver_1 airflow connections add 'postgres_default' --conn-type 'Postgres' --conn-login 'airflow' --conn-password 'airflow' --conn-host 'localhost' --conn-port 5432 --conn-schema 'airflow'
+echo "adding redshift connections to Airflow connection param"
+# name of folder is 7-de-behavior-persoanlizaiton
+docker exec -d 7-de-behavior-persoanlizaiton-airflow-webserver-1 airflow connections add 'redshift' --conn-type 'Postgres' --conn-login $REDSHIFT_USER --conn-password $REDSHIFT_PASSWORD --conn-host $REDSHIFT_HOST --conn-port $REDSHIFT_PORT --conn-schema 'dev'
+docker exec -d 7-de-behavior-persoanlizaiton-airflow-webserver-1 airflow connections add 'postgres_default' --conn-type 'Postgres' --conn-login 'airflow' --conn-password 'airflow' --conn-host 'localhost' --conn-port 5432 --conn-schema 'airflow'
 
-# echo "adding S3 bucket name to Airflow variables"
-# docker exec -d 7-de-behavior-persoanlizaiton_airflow-webserver_1 airflow variables set BUCKET $args
+echo "adding S3 bucket name to Airflow variables"
+docker exec -d 7-de-behavior-persoanlizaiton-airflow-webserver-1 airflow variables set BUCKET $args
 
-# echo "adding EMR ID to Airflow variables"
-# $EMR_CLUSTER_ID=$(aws emr list-clusters --active --query "Clusters[?Name==`'$SERVICE_NAME'`].Id" --output text)
-# docker exec -d 7-de-behavior-persoanlizaiton_airflow-webserver_1 airflow variables set EMR_ID $EMR_CLUSTER_ID
+echo "adding EMR ID to Airflow variables"
+$EMR_CLUSTER_ID=$(aws emr list-clusters --active --query "Clusters[?Name==`'$SERVICE_NAME'`].Id" --output text)
+docker exec -d 7-de-behavior-persoanlizaiton-airflow-webserver-1 airflow variables set EMR_ID $EMR_CLUSTER_ID
 
-# echo "Setting up AWS access for Airflow workers"
-# $AWS_ID=$(aws configure get aws_access_key_id)
-# $AWS_SECRET_KEY=$(aws configure get aws_secret_access_key)
-# $AWS_REGION=$(aws configure get region)
-# docker exec -d 7-de-behavior-persoanlizaiton_airflow-webserver_1 airflow connections add 'aws_default' --conn-type 'aws' --conn-login $AWS_ID --conn-password $AWS_SECRET_KEY --conn-extra '{"region_name":"$AWS_REGION"}'
+echo "Setting up AWS access for Airflow workers"
+$AWS_ID=$(aws configure get aws_access_key_id)
+$AWS_SECRET_KEY=$(aws configure get aws_secret_access_key)
+$AWS_REGION=$(aws configure get region)
+docker exec -d 7-de-behavior-persoanlizaiton-airflow-webserver-1 airflow connections add 'aws_default' --conn-type 'aws' --conn-login $AWS_ID --conn-password $AWS_SECRET_KEY --conn-extra '{"region_name":"$AWS_REGION"}'
 
-# echo "Successfully setup local Airflow containers, S3 bucket $args, EMR Cluster $SERVICE_NAME, redshift cluster $SERVICE_NAME, and added config to Airflow connections and variables"
+echo "Successfully setup local Airflow containers, S3 bucket $args, EMR Cluster $SERVICE_NAME, redshift cluster $SERVICE_NAME, and added config to Airflow connections and variables"
