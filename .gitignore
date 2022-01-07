@@ -1,13 +1,12 @@
 key
 bp-env
-dags
 data
 logs
-pgsetup
 plugins
 temp
 data.zip
 setup.log
 tear_down.log
+teardown.log
 redshift_setup.sql
 __MACOSX
