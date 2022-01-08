@@ -92,3 +92,46 @@ spark_script_to_s3 = PythonOperator(
         "bucket_name": BUCKET_NAME
     }
 )
+
+start_emr_movie_classification_script = EmrAddStepsOperator(
+    dag=dag,
+    task_id="start_emr_movie_classification_script",
+    job_flow_id=EMR_ID,
+    aws_conn_id="aws_default",
+    steps=EMR_STEPS,
+    params={
+        "BUCKET_NAME": BUCKET_NAME,
+        "raw_movie_review": "raw/movie_review",
+        "text_classifier_script": "scripts/random_text_classification.py",
+        "stage_movie_review": "stage/movie_review"
+    },
+    depends_on_past=True
+)
+
+last_step = len(EMR_STEPS) - 1
+
+wait_for_movie_classification_transformation = EmrStepSensor(
+    dag=dag,
+    task_id="wait_for_movie_classification_transformation",
+    job_flow=EMR_ID,
+    step_id='{{ task_instance.xcom_pull("start_emr_movie_classification_script", key="return_value")['
+    + str(last_step)
+    + ']}}',
+    depends_on_past=True
+)
+
+generate_user_behavior_metric = PostgresOperator(
+    dag=dag,
+    task_id="generate_user_behavior_metric",
+    sql="scripts/sql/generate_user_behavior_metric.sql",
+    postgres_conn_id="redshift"
+)
+
+end_of_data_pipeline = DummyOperator(dag=dag, task_id="end_of_data_pipeline")
+
+# DAG Cycle
+extract_user_purchase_data >> user_purchase_to_stage_data_lake >> user_purchase_stage_data_lake_to_stage_tbl
+
+[movie_review_to_raw_data_lake, spark_script_to_s3] >> start_emr_movie_classification_script >>wait_for_movie_classification_transformation
+
+[user_purchase_stage_data_lake_to_stage_tbl, wait_for_movie_classification_transformation] >> generate_user_behavior_metric >> end_of_data_pipeline
