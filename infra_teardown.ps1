@@ -26,7 +26,7 @@ rm data.zip -Force
 rm -r data -Force
 
 echo "Spinning down local Airflow infrastructure"
-docker compose down --volumes --rmi all
+# docker compose down --volumes --rmi all
 
 echo "Terminating EMR cluster $SERVICE_NAME"
 $EMR_CLUSTER_ID=$(aws emr list-clusters --active --query "Clusters[?Name==`'$SERVICE_NAME'`].Id" --output text)

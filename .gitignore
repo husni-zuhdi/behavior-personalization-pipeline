@@ -10,3 +10,4 @@ tear_down.log
 teardown.log
 redshift_setup.sql
 __MACOSX
+*__pycache__

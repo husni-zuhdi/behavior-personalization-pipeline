@@ -15,7 +15,7 @@ from utils import _local_to_s3, run_redshift_external_query
 BUCKET_NAME = Variable.get("BUCKET")
 EMR_ID = Variable.get("EMR_ID")
 EMR_STEPS = {}
-with open("/dags/scripts/emr/clean_moview_review.json") as j:
+with open("./dags/scripts/emr/clean_movie_review.json") as j:
     EMR_STEPS = json.load(j)
 
 # DAG definition
@@ -87,7 +87,7 @@ spark_script_to_s3 = PythonOperator(
     task_id="spark_script_to_s3",
     python_callable=_local_to_s3,
     op_kwargs={
-        "file_name": "/dags/scripts/spark/random_text_classification.py",
+        "file_name": "./dags/scripts/spark/random_text_classification.py",
         "key": "scripts/random_text_classification.py",
         "bucket_name": BUCKET_NAME
     }
@@ -113,7 +113,7 @@ last_step = len(EMR_STEPS) - 1
 wait_for_movie_classification_transformation = EmrStepSensor(
     dag=dag,
     task_id="wait_for_movie_classification_transformation",
-    job_flow=EMR_ID,
+    job_flow_id=EMR_ID,
     step_id='{{ task_instance.xcom_pull("start_emr_movie_classification_script", key="return_value")['
     + str(last_step)
     + ']}}',
