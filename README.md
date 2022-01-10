@@ -40,7 +40,7 @@ To destroy infrastructure, run infra_teardown.ps1 with `bucket_name` as an argum
 
 Example : `infra_teardown.ps1 name-of-bucket`
 
-## Reference
+## References
 
 [1] [Data Engineering Project for Beginners - Batch edition](https://www.startdataengineering.com/post/data-engineering-project-for-beginners-batch-edition/)
 

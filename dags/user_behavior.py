@@ -114,9 +114,7 @@ wait_for_movie_classification_transformation = EmrStepSensor(
     dag=dag,
     task_id="wait_for_movie_classification_transformation",
     job_flow_id=EMR_ID,
-    step_id='{{ task_instance.xcom_pull("start_emr_movie_classification_script", key="return_value")['
-    + str(last_step)
-    + ']}}',
+    step_id='{{ task_instance.xcom_pull("start_emr_movie_classification_script", key="return_value")[' + str(last_step) + ']}}',
     depends_on_past=True
 )
 

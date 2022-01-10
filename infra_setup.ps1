@@ -195,7 +195,7 @@ docker exec -d "$($(Split-Path -Path $pwd -Leaf).ToLower())-airflow-webserver-1"
 echo "Setting up AWS access for Airflow workers"
 $AWS_ID=$(aws configure get aws_access_key_id)
 $AWS_SECRET_KEY=$(aws configure get aws_secret_access_key)
-$AWS_REGION=$(aws configure get region)
-docker exec -d "$($(Split-Path -Path $pwd -Leaf).ToLower())-airflow-webserver-1" airflow connections add 'aws_default' --conn-type 'aws' --conn-login $AWS_ID --conn-password $AWS_SECRET_KEY --conn-extra "{`"region_name`":`"$AWS_REGION`"}"
+$EXTRA="{`"region_name`":`"$AWS_REGION`"}"
+docker exec -d "$($(Split-Path -Path $pwd -Leaf).ToLower())-airflow-webserver-1" airflow connections add 'aws_default' --conn-type 'aws' --conn-login $AWS_ID --conn-password $AWS_SECRET_KEY --conn-extra $EXTRA
 
 echo "Successfully setup local Airflow containers, S3 bucket $args, EMR Cluster $SERVICE_NAME, redshift cluster $SERVICE_NAME, and added config to Airflow connections and variables"
